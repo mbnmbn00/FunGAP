@@ -70,8 +70,10 @@ micromamba create -y --name busco bioconda::busco  # v5.8.3 tested
 micromamba create -y --name maker bioconda::maker  # v3.01.03 tested
 micromamba create -y \
   --name fungap \
-  --channel bioconda --channel conda-forge \
-  python biopython bcbio-gff markdown2 matplotlib
+  --channel conda-forge --channel bioconda \
+  --channel defaults \
+  --channel-priority flexible \
+  python=3 biopython bcbio-gff markdown2 matplotlib
 ```
 
 Check installations
@@ -105,7 +107,7 @@ micromamba run --name maker augustus --help
 
 ### 2.1. Download FunGAP
 
-Download FunGAP using GitHub clone. Suppose we are installing FunGAP in your `$HOME` directory, but you are free to change the location. `$FUNGAP_DIR` is going to be your FunGAP installation directory.
+Download FunGAP using GitHub clone. Suppose we are installing FunGAP in your `$HOME` directory, but you are free to change the location. `${FUNGAP_DIR}` is going to be your FunGAP installation directory.
 
 ```bash
 cd $HOME  # or wherever you want
@@ -119,15 +121,15 @@ export FUNGAP_DIR=$(realpath FunGAP/)
 
 ## 3. Download Pfam
 
-Download Pfam databases in your `$FUNGAP_DIR/db` directory.
+Download Pfam databases in your `${FUNGAP_DIR}/db` directory.
 
 ### 3.1. Pfam DB download 
 
 ftp://ftp.ebi.ac.uk/pub/databases/Pfam/current_release
 
 ```bash
-mkdir -p $FUNGAP_DIR/db/pfam
-cd $FUNGAP_DIR/db/pfam
+mkdir -p ${FUNGAP_DIR}/db/pfam
+cd ${FUNGAP_DIR}/db/pfam
 wget ftp://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz
 wget ftp://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.dat.gz
 gunzip Pfam-A.hmm.gz Pfam-A.hmm.dat.gz
@@ -145,9 +147,9 @@ Don't forget to download the key, too.
 ### 4.1. Uncompress downloaded files
 
 ```bash
-mkdir $FUNGAP_DIR/external/
-mv gmes_linux_64_4.tar.gz gm_key_64.gz $FUNGAP_DIR/external/  # Move your downloaded files to this directory
-cd $FUNGAP_DIR/external/
+mkdir ${FUNGAP_DIR}/external/
+mv gmes_linux_64_4.tar.gz gm_key_64.gz ${FUNGAP_DIR}/external/  # Move your downloaded files to this directory
+cd ${FUNGAP_DIR}/external/
 tar -zxvf gmes_linux_64_4.tar.gz
 gunzip gm_key_64.gz
 cp gm_key_64 ${HOME}/.gm_key
@@ -158,7 +160,7 @@ cp gm_key_64 ${HOME}/.gm_key
 GeneMark forces to use `/usr/bin/perl` instead of conda-installed perl. You can change this by running `change_path_in_perl_scripts.pl` script.
 
 ```bash
-cd $FUNGAP_DIR/external/gmes_linux_64_4/
+cd ${FUNGAP_DIR}/external/gmes_linux_64_4/
 perl change_path_in_perl_scripts.pl "/usr/bin/env perl"
 ```
 
@@ -190,25 +192,11 @@ ls $(dirname $(which RepeatMasker))/../share/RepeatMasker/Libraries
 
 ## 6. Configure FunGAP
 
-This script allows users to set and test (by --help command) all the dependencies. If this script runs without any issue, you are ready to run FunGAP!
-
-```bash
-cd $FUNGAP_DIR
-conda activate maker
-export MAKER_DIR=$(dirname $(which maker))
-echo $MAKER_DIR  # /home/ubuntu/anaconda3/envs/maker/bin
-conda activate fungap
-./set_dependencies.py \
-  --pfam_db_path db/pfam/ \
-  --genemark_path external/gmes_linux_64_4/ \
-  --maker_path ${MAKER_DIR}
-```
+Check the `${FUNGAP_DIR}/fungap_config.json` file. As long as all the paths in this configuration file are valid, FunGAP is likely to run successfully.
 
 <br />
 
 # Test run
-
-<a name="testdata"></a>
 
 ### 1. Download test dataset
 
@@ -227,8 +215,7 @@ gunzip GCF_000146045.2_R64_genomic.fna.gz
 ### 2. Download protein sequences of related species
 
 ```bash
-conda activate fungap  # if you didn't do it already
-$FUNGAP_DIR/download_sister_orgs.py \
+micromamba run --name fungap ${FUNGAP_DIR}/download_sister_orgs.py \
   --taxon "Saccharomyces cerevisiae" \
   --email_address <YOUR_EMAIL_ADDRESS> \
   --num_sisters 1
@@ -238,8 +225,7 @@ zcat sister_orgs/*faa.gz > prot_db.faa
 ### 3. Get Augustus species
 
 ```bash
-conda activate fungap  # if you didn't do it already
-$FUNGAP_DIR/get_augustus_species.py \
+micromamba run --name fungap ${FUNGAP_DIR}/get_augustus_species.py \
   --genus_name "Saccharomyces" \
   --email_address <YOUR_EMAIL_ADDRESS>
 ```
@@ -249,8 +235,7 @@ $FUNGAP_DIR/get_augustus_species.py \
 ### 4. Run FunGAP
 
 ```bash
-conda activate fungap  # if you didn't do it already
-$FUNGAP_DIR/fungap.py \
+micromamba run --name fungap ${FUNGAP_DIR}/fungap.py \
   --genome_assembly GCF_000146045.2_R64_genomic.fna \
   --trans_read_1 SRR1198667_1.fastq \
   --trans_read_2 SRR1198667_2.fastq \
