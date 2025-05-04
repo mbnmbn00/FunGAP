@@ -1,6 +1,6 @@
-# Installation of FunGAP v1.1.1
+# Installation of FunGAP v1.1.2
 
-** Last updated: May 18, 2021*
+** Last updated: May 26, 2025*
 
 **FunGAP is freely available for academic use. For the commerical use or license of FunGAP, please contact In-Geol Choi (email: igchoi (at) korea.ac.kr). Please, cite the following reference**
 
@@ -9,7 +9,7 @@ Reference: Byoungnam Min  Igor V Grigoriev  In-Geol Choi, FunGAP: Fungal Genome 
 <hr>
 
 Please don't hesitate to post on *Issues* or contact me (mbnmbn00@gmail.com) for help.
-These steps were tested in the freshly installed Ubuntu 20.04.2 LTS.
+These steps were tested in the freshly installed Ubuntu 24.04.2 LTS.
 
 <br />
 
@@ -19,76 +19,84 @@ Using Docker is the most reliable and robust way to install FunGAP. [Please foll
 
 <br />
 
-# Install FunGAP using conda
+# Install FunGAP using Micromamba
 
-Although we recommend using Docker, some workspaces are not available for Docker (e.g., HPC). Please use the following instruction for conda-based FunGAP installation.
+Although we recommend using Docker, some workspaces are not available for Docker (e.g., HPC). Please use the following instruction for micromamba-based FunGAP installation.
 
 ## 0. FunGAP requirements
 
 ### 0.1. Required softwares (and tested versions)
 
 1. [Hisat2](https://ccb.jhu.edu/software/hisat2/index.shtml) v2.2.1
-1. [Trinity](https://github.com/trinityrnaseq/trinityrnaseq) v2.12.0
-1. [RepeatModeler](http://www.repeatmasker.org/RepeatModeler/) v2.0.1
+1. [Trinity](https://github.com/trinityrnaseq/trinityrnaseq) v2.15.2
+1. [RepeatModeler](http://www.repeatmasker.org/RepeatModeler/) v2.0.6
 1. [Maker](http://www.yandell-lab.org/software/maker.html) v3.01.03
-1. [GeneMark-ES/ET](http://topaz.gatech.edu/GeneMark/license_download.cgi) v4.65_lic
-1. [Augustus](https://github.com/Gaius-Augustus/Augustus) v3.4.0
-1. [Braker](http://exon.gatech.edu/braker1.html) v2.1.5
-1. [BUSCO](https://busco.ezlab.org/) v5.1.2
+1. [GeneMark-ES/ET](http://topaz.gatech.edu/GeneMark/license_download.cgi) v4.72_lic
+1. [Augustus](https://github.com/Gaius-Augustus/Augustus) v3.5.0
+1. [Braker](http://exon.gatech.edu/braker1.html) v3.0.8
+1. [BUSCO](https://busco.ezlab.org/) v5.8.3
 1. [Pfam_scan](https://www.ebi.ac.uk/seqdb/confluence/display/THD/PfamScan) v1.6
-1. [BLAST](https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Web&PAGE_TYPE=BlastDocs&DOC_TYPE=Download) v2.11.0
-1. [Samtools](http://www.htslib.org/download/) v1.10
-1. [Bamtools](https://github.com/pezmaster31/bamtools) v2.5.1
+1. [BLAST](https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Web&PAGE_TYPE=BlastDocs&DOC_TYPE=Download) v2.16.0
+1. [Samtools](http://www.htslib.org/download/) v1.21
+1. [Bamtools](https://github.com/pezmaster31/bamtools) v2.5.2
 
 ### 0.2. Required database
 
-1. [Pfam](https://pfam.xfam.org/) release 34.0
+1. [Pfam](https://pfam.xfam.org/) release 37.3
 
 <br/>
 
-## 1. Setup Anaconda environment
+## 1. Setup Micromamba environment
 
-### 1.1. Install Anaconda3 (v4.10.1 tested)
-
-Download and install Anaconda3 (We assume that you install it in `$HOME/anaconda3`)
+### 1.1. Install Micromamba (v2.1.0 tested)
 
 ```bash
-# Download and install conda
-cd $HOME
-wget https://repo.anaconda.com/archive/Anaconda3-2021.05-Linux-x86_64.sh
-bash Anaconda3-2021.05-Linux-x86_64.sh
-
-# Set environment if you select "no" to "Do you wish the installer to initialize Anaconda3?"
-echo ". $HOME/anaconda3/etc/profile.d/conda.sh" >> ~/.bashrc
-source $HOME/.bashrc
-which conda  # It should be $HOME/anaconda3/condabin/conda
-
-# Get up-to-date conda
-conda update conda
+# Download and install Micromamba
+cd ${HOME}
+"${SHELL}" <(curl -L micro.mamba.pm/install.sh)
+source ~/.bashrc
 ```
 
 ### 1.2. Install dependencies
 
+Install dependencies using Micromamba
 ```bash
-# Install Mamba package manager (faster!)
-conda install mamba -n base -c conda-forge
+micromamba create -y --name braker3 bioconda::braker3  # v3.0.8 tested
+micromamba create -y --name trinity bioconda::trinity  # v2.15.2 tested
+micromamba create -y --name repeatmodeler bioconda::repeatmodeler  # v2.0.6 tested
+micromamba create -y --name hisat2 bioconda::hisat2  # v2.2.1 tested
+micromamba create -y --name pfam_scan bioconda::pfam_scan  # v1.6 tested
+micromamba create -y --name busco bioconda::busco  # v5.8.3 tested
+micromamba create -y --name maker bioconda::maker  # v3.01.03 tested
+micromamba create -y \
+  --name fungap \
+  --channel bioconda --channel conda-forge \
+  python biopython bcbio-gff markdown2 matplotlib
+```
 
-# Create FunGAP environment and install dependencies using Mamba
-conda create -y -n fungap
-conda activate fungap
-mamba install \
-  braker2=2.1.5 trinity=2.12.0 repeatmodeler=2.0.1 hisat2=2.2.1 pfam_scan=1.6 busco=5.1.2 \
-  -c bioconda -c conda-forge
-
-# Install Python and Perl modules (within fungap environment)
-pip install biopython bcbio-gff markdown2 matplotlib
-cpanm YAML Hash::Merge Logger::Simple Parallel::ForkManager MCE::Mutex Thread::Queue threads
-
-# Install Maker using Mamba (Maker installation is conflict with Busco)
-conda deactivate
-conda create -y -n maker
-conda activate maker
-mamba install maker=3.01.03 -c bioconda -c conda-forge
+Check installations
+```bash
+micromamba run --name repeatmodeler BuildDatabase --help
+micromamba run --name repeatmodeler RepeatModeler --help
+micromamba run --name hisat2 hisat2 --help
+micromamba run --name trinity Trinity --help
+micromamba run --name maker maker --help
+micromamba run --name maker gff3_merge --help
+micromamba run --name maker fasta_merge --help
+micromamba run --name maker maker2zff --help
+micromamba run --name maker fathom -help
+micromamba run --name maker forge
+micromamba run --name maker hmm-assembler.pl --help
+micromamba run --name braker3 braker.pl --help
+micromamba run --name busco busco --help
+micromamba run --name pfam_scan pfam_scan.pl -h
+micromamba run --name maker blastp -help
+micromamba run --name maker blastn -help
+micromamba run --name maker blastx -help
+micromamba run --name maker makeblastdb -help
+micromamba run --name maker samtools --help
+micromamba run --name maker bamtools --help
+micromamba run --name maker augustus --help
 ```
 
 <br />
@@ -123,8 +131,7 @@ cd $FUNGAP_DIR/db/pfam
 wget ftp://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz
 wget ftp://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.dat.gz
 gunzip Pfam-A.hmm.gz Pfam-A.hmm.dat.gz
-conda activate fungap
-hmmpress Pfam-A.hmm  # HMMER package (would be automatically installed in the above Anaconda step)
+micromamba run --name maker hmmpress Pfam-A.hmm
 ```
 
 <br />
@@ -159,7 +166,7 @@ perl change_path_in_perl_scripts.pl "/usr/bin/env perl"
 
 ```bash
 cd $FUNGAP_DIR/external/gmes_linux_64_4/
-./gmes_petap.pl
+micromamba run --name braker3 ./gmes_petap.pl
 ```
 
 <br />
@@ -167,10 +174,10 @@ cd $FUNGAP_DIR/external/gmes_linux_64_4/
 ## 5. Download RepeatMasker databases
 
 ```bash
-conda activate fungap
+micromamba activate --name repeatmodeler
 cd $(dirname $(which RepeatMasker))/../share/RepeatMasker
 # ./configure command will download required databases
-echo -e "\n2\n$(dirname $(which rmblastn))\n\n5\n" > tmp && ./configure < tmp
+echo -e "\n\n2\n\n5\n" > tmp && ./configure < tmp
 
 # It should look like this
 ls $(dirname $(which RepeatMasker))/../share/RepeatMasker/Libraries
