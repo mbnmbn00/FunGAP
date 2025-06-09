@@ -80,9 +80,7 @@ def main():
 
     # Run functions :) Slow is as good as Fast
     logger_time.debug('START: Hisat2')
-    run_hisat2(
-        read_files, output_dir, log_dir, ref_fasta, num_cores,
-        max_intron, logger)
+    run_hisat2(read_files, output_dir, log_dir, ref_fasta, num_cores, max_intron, logger)
     logger_time.debug('DONE : Hisat2')
 
 
@@ -103,9 +101,7 @@ def create_dir(output_dir, log_dir):
         os.mkdir(log_dir)
 
 
-def run_hisat2(
-        read_files, output_dir, log_dir, ref_fasta, num_cores,
-        max_intron, logger):
+def run_hisat2(read_files, output_dir, log_dir, ref_fasta, num_cores, max_intron, logger):
     '''Run Hisat2'''
     output_dir = re.sub(r'/$', '', output_dir)
     hisat2_bin = D_CONF['HISAT2_PATH']
@@ -116,15 +112,11 @@ def run_hisat2(
     hisat2_build_output = '{}.5.ht2'.format(ref_fasta)
     logger_txt = logger[1]
     if not os.path.exists(hisat2_build_output):
-        command1 = '{0}-build -p {1} {2} {2} > {3} 2>&1'.format(
-            hisat2_bin, num_cores, ref_fasta, hisat2_build_log_file
-        )
-        logger_txt.debug('[Run] %s', command1)
+        command1 = f'{hisat2_bin}-build -p {num_cores} {ref_fasta} {ref_fasta} > {hisat2_build_log_file} 2>&1'
+        logger_txt.debug(f'[Run] {command1}')
         os.system(command1)
     else:
-        logger_txt.debug(
-            '[Note] Running hisat2-build has already been finished'
-        )
+        logger_txt.debug('[Note] Running hisat2-build has already been finished')
 
     # hisat2 -p <num_cores> -x Choanephora_cucurbitarum_assembly.fna
     # -1 reads/chocu-mRNA_1.fastq -2 reads/chocu-mRNA_2.fastq
@@ -166,34 +158,32 @@ def run_hisat2(
 
             # Step 1: Run HISAT2 and write SAM file
             command1 = shlex.split(hisat2_bin)
-            command1.extend(['--max-intronlen', str(max_intron), '-p', str(num_cores), '-x', ref_fasta, '-S', sam_path])
-            command1.extend(read_arg.split())
+            command1 = (
+                f'{hisat2_bin}'
+                f'  --max-intronlen {max_intron}'
+                f'  -p {num_cores}'
+                f'  -x {ref_fasta}'
+                f'  -S {sam_path}'
+                f'  {read_arg}')
             with open(log_file, 'w') as logf:
-                logger_txt.debug('[Run] %s', ' '.join(command1))
-                subprocess.run(command1, stderr=logf, check=True)
+                logger_txt.debug(f'[Run] {command1}')
+                subprocess.run(command1, stderr=logf, check=True, shell=True)
 
             # Step 2: Convert SAM to BAM
-            command2 = shlex.split(samtools_bin)
-            command2.extend(['view', '-bSF4', sam_path, '-o', unsorted_bam_path])
-            logger_txt.debug('[Run] %s', ' '.join(command2))
-            subprocess.run(command2, check=True)
+            command2 = f'{samtools_bin} view -bSF4 {sam_path} -o {unsorted_bam_path}'
+            logger_txt.debug(f'[Run] {command2}')
+            subprocess.run(command2, check=True, shell=True)
 
             # Step 3: Sort BAM
-            command3 = shlex.split(samtools_bin)
-            command3.extend(['sort', unsorted_bam_path, '-o', hisat2_output])
-            logger_txt.debug('[Run] %s', ' '.join(command3))
-            subprocess.run(command3, check=True)
+            command3 = f'{samtools_bin} sort -@ {num_cores} {unsorted_bam_path} -o {hisat2_output}'
+            logger_txt.debug(f'[Run] {command3}')
+            subprocess.run(command3, check=True, shell=True)
         else:
-            logger_txt.debug(
-                '[Note] Running Hisat2 has already been finished for %s', prefix
-            )
+            logger_txt.debug('[Note] Running Hisat2 has already been finished for %s', prefix)
 
     if not hisat2_outputs:
-        logger_txt.debug(
-            '[ERROR] No BAM file was made. Please check the log file'
-        )
-        sys.exit(2)
-
+        logger_txt.debug('[ERROR] No BAM file was made. Please check the log file')
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()

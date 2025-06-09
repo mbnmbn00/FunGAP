@@ -58,7 +58,7 @@ The parameters set by FunGAP are:
     keep_preds=1
     augustus_species=augustus_species
     gmhmm=$OUTPUT_DIR/genemark_out/output/gmhmm.mod
-Last updated: Aug 12, 2020
+Last updated: Aug 2, 2025
 '''
 
 import os
@@ -66,6 +66,7 @@ import re
 from argparse import ArgumentParser
 from glob import glob
 from shutil import copyfile
+import subprocess
 
 from import_config import import_config
 from set_logging import set_logging
@@ -78,50 +79,24 @@ GFF3_TRANSLATION_SCRIPT = 'gff3_translation.py'
 def main():
     '''Main function'''
     optparse_usage = (
-        'run_maker.py -i <input_fasta> -p <protein_db_fasta> -c <num_cores> '
-        '-R <repeat_model> -e <est_files>'
-    )
+        'run_maker.py -i <input_fasta> -p <protein_db_fasta> -c <num_cores> -R <repeat_model> -e <est_files>')
     parser = ArgumentParser(usage=optparse_usage)
-    parser.add_argument(
-        '-i', '--input_fasta', nargs=1, required=True,
-        help='Input genome sequence in FASTA format'
-    )
+    parser.add_argument('-i', '--input_fasta', nargs=1, required=True, help='Input genome sequence in FASTA format')
     parser.add_argument(
         '-a', '--augustus_species', nargs=1, required=True,
-        help='"augustus --species=help" would be helpful'
-    )
-    parser.add_argument(
-        '-p', '--protein_db_fasta', nargs='+', required=True,
-        help='Protein db in FASTA foramt'
-    )
+        help='"augustus --species=help" would be helpful')
+    parser.add_argument('-p', '--protein_db_fasta', nargs='+', required=True, help='Protein db in FASTA foramt')
     parser.add_argument(
         '-R', '--repeat_model', nargs=1, required=True,
-        help='De novo repeat model by RepeatModeler: consensi.fa.classified'
-    )
-    parser.add_argument(
-        '-e', '--est_files', nargs='+', required=True,
-        help='Multiple EST data if available'
-    )
-    parser.add_argument(
-        '-o', '--output_dir', nargs='?', default='maker_out',
-        help='Output directory'
-    )
-    parser.add_argument(
-        '-c', '--num_cores', nargs='?', default=1, type=int,
-        help='Number of cores to be used'
-    )
-    parser.add_argument(
-        '-l', '--log_dir', nargs='?', default='logs',
-        help='Log directory'
-    )
+        help='De novo repeat model by RepeatModeler: consensi.fa.classified')
+    parser.add_argument('-e', '--est_files', nargs='+', required=True, help='Multiple EST data if available')
+    parser.add_argument('-o', '--output_dir', nargs='?', default='maker_out', help='Output directory')
+    parser.add_argument('-c', '--num_cores', nargs='?', default=1, type=int, help='Number of cores to be used')
+    parser.add_argument('-l', '--log_dir', nargs='?', default='logs', help='Log directory')
     parser.add_argument(
         '-t', '--translation_table', nargs='?', default=1, type=int,
-        help='Translation table (default: 1)'
-    )
-    parser.add_argument(
-        '--gmes_fungus', action='store_true',
-        help='--fungus flag in GeneMark'
-    )
+        help='Translation table (default: 1)')
+    parser.add_argument('--gmes_fungus', action='store_true', help='--fungus flag in GeneMark')
 
     args = parser.parse_args()
     input_fasta = os.path.abspath(args.input_fasta[0])
@@ -133,11 +108,7 @@ def main():
     repeat_model = os.path.abspath(args.repeat_model[0])
     est_files = [os.path.abspath(x) for x in args.est_files]
     translation_table = args.translation_table
-
-    if args.gmes_fungus:
-        gmes_fungus = '--fungus'
-    else:
-        gmes_fungus = ''
+    gmes_fungus = '--fungus' if args.gmes_fungus else ''
 
     # Create necessary directory
     create_dir(output_dir, log_dir)
@@ -158,57 +129,40 @@ def main():
             os.mkdir(est_dir)
 
         # Check maker is already done
-        run_flag_run1 = check_maker_finished(
-            output_dir, input_fasta, '1', est_prefix
-        )
+        run_flag_run1 = check_maker_finished(output_dir, input_fasta, '1', est_prefix)
 
         # Run Maker batch
         logger_time.debug('START running Maker run1')
         if run_flag_run1:
             run_maker_batch(
-                input_fasta, output_dir, log_dir, protein_db_fastas,
-                num_cores, repeat_model, est_file, all_gff_file, logger
-            )
+                input_fasta, output_dir, log_dir, protein_db_fastas, num_cores, repeat_model, est_file, all_gff_file,
+                logger)
         else:
             logger_txt.debug('[Note] Running Maker has already been finished')
         logger_time.debug('DONE  running Maker run1')
 
         # Train run1 & run Maker run2
-        all_gff_file_run1 = collect_result(
-            input_fasta, output_dir, '1', est_prefix, logger
-        )
+        all_gff_file_run1 = collect_result(input_fasta, output_dir, '1', est_prefix, logger)
         logger_time.debug('START training run1 & running maker run2')
-        snap_hmm_file_run1 = train_snap(
-            output_dir, all_gff_file_run1, '1', est_prefix, logger
-        )
-        run_flag_run2 = check_maker_finished(
-            output_dir, input_fasta, '2', est_prefix
-        )
+        snap_hmm_file_run1 = train_snap(output_dir, all_gff_file_run1, '1', est_prefix, logger)
+        run_flag_run2 = check_maker_finished(output_dir, input_fasta, '2', est_prefix)
         if run_flag_run2:
             run_maker_trained(
-                input_fasta, output_dir, log_dir, augustus_species, num_cores,
-                snap_hmm_file_run1, all_gff_file_run1, '2', est_prefix, logger
-            )
+                input_fasta, output_dir, log_dir, augustus_species, num_cores, snap_hmm_file_run1, all_gff_file_run1,
+                '2', est_prefix, logger)
         else:
             logger_txt.debug('[Note] Running Maker has already been finished')
         logger_time.debug('DONE  training run1 & running maker run2')
 
         # Train run2 & run Maker run3
-        all_gff_file_run2 = collect_result(
-            input_fasta, output_dir, '2', est_prefix, logger
-        )
+        all_gff_file_run2 = collect_result(input_fasta, output_dir, '2', est_prefix, logger)
         logger_time.debug('START training run2 & running maker run3')
-        snap_hmm_file_run2 = train_snap(
-            output_dir, all_gff_file_run2, '2', est_prefix, logger
-        )
-        run_flag_run3 = check_maker_finished(
-            output_dir, input_fasta, '3', est_prefix
-        )
+        snap_hmm_file_run2 = train_snap(output_dir, all_gff_file_run2, '2', est_prefix, logger)
+        run_flag_run3 = check_maker_finished(output_dir, input_fasta, '3', est_prefix)
         if run_flag_run3:
             run_maker_trained(
-                input_fasta, output_dir, log_dir, augustus_species, num_cores,
-                snap_hmm_file_run2, all_gff_file_run2, '3', est_prefix, logger
-            )
+                input_fasta, output_dir, log_dir, augustus_species, num_cores, snap_hmm_file_run2, all_gff_file_run2,
+                '3', est_prefix, logger)
         else:
             logger_txt.debug('[Note] Running Maker has already been finished')
         logger_time.debug('DONE  training run2 & running maker run3')
@@ -217,38 +171,23 @@ def main():
         masked_assembly = get_masked_asm(output_dir, est_files, logger)
 
         # Run gmes or gmsn
-        eukgmhmmfile = run_gmes(
-            masked_assembly, num_cores, output_dir, log_dir, gmes_fungus, logger
-        )
+        eukgmhmmfile = run_gmes(masked_assembly, num_cores, output_dir, log_dir, gmes_fungus, logger)
 
         # Train run3 & run Maker run4
-        all_gff_file_run3 = collect_result(
-            input_fasta, output_dir, '3', est_prefix, logger
-        )
+        all_gff_file_run3 = collect_result(input_fasta, output_dir, '3', est_prefix, logger)
         logger_time.debug('START training run3 & running maker run4')
-        snap_hmm_file_run3 = train_snap(
-            output_dir, all_gff_file_run3, '3', est_prefix, logger
-        )
-        run_flag_run4 = check_maker_finished(
-            output_dir, input_fasta, '4', est_prefix
-        )
+        snap_hmm_file_run3 = train_snap(output_dir, all_gff_file_run3, '3', est_prefix, logger)
+        run_flag_run4 = check_maker_finished(output_dir, input_fasta, '4', est_prefix)
         if run_flag_run4:
             run_maker_trained(
-                input_fasta, output_dir, log_dir, augustus_species, num_cores,
-                snap_hmm_file_run3, all_gff_file_run3, '4', est_prefix, logger,
-                eukgmhmmfile
-            )
+                input_fasta, output_dir, log_dir, augustus_species, num_cores, snap_hmm_file_run3, all_gff_file_run3,
+                '4', est_prefix, logger, eukgmhmmfile)
         else:
             logger_txt.debug('[Note] Running Maker has already been finished')
         logger_time.debug('DONE  training run3 & running maker run4')
-
         # Get final GFF3 & FASTA
-        collect_result_final(
-            input_fasta, output_dir, est_prefix, translation_table, logger
-        )
-        all_gff_file = collect_result(
-            input_fasta, output_dir, '4', est_prefix, logger
-        )
+        collect_result_final(input_fasta, output_dir, est_prefix, translation_table, logger)
+        all_gff_file = collect_result(input_fasta, output_dir, '4', est_prefix, logger)
 
 
 def import_file(input_file):
@@ -284,10 +223,8 @@ def create_dir(output_dir, log_dir):
 def check_maker_finished(output_dir, input_fasta, version, prefix):
     '''Check if maker is finished'''
     # For first run
-    index_log_file = glob(os.path.join(
-        output_dir, prefix,
-        'maker_run{}/*output/*master_datastore_index.log'.format(version)
-    ))
+    index_log_file = glob(
+        os.path.join(output_dir, prefix, 'maker_run{}/*output/*master_datastore_index.log'.format(version)))
 
     if not index_log_file:
         return True
@@ -313,8 +250,7 @@ def check_maker_finished(output_dir, input_fasta, version, prefix):
 
     if finished_scaffolds == fasta_scaffolds:
         return False
-    else:
-        return True
+    return True
 
 
 def run_gmes(
@@ -332,12 +268,8 @@ def run_gmes(
     if not glob(output_gmes):
         os.chdir(gmes_dir)
         command = (
-            '{} --ES {} --cores {} --sequence {} --soft_mask auto > '
-            '{} 2>&1'.format(
-                genemark_bin, gmes_fungus, num_cores, masked_assembly,
-                log_file
-            )
-        )
+            f'{genemark_bin} --ES {gmes_fungus} --cores {num_cores} --sequence {masked_assembly} --soft_mask auto > '
+            f'{log_file} 2>&1')
         logger_txt.debug('[Run] %s', command)
         os.system(command)
     else:
@@ -348,8 +280,7 @@ def run_gmes(
 
 
 def run_maker_batch(
-        input_fasta, output_dir, log_dir, protein_db_fastas, num_cores,
-        repeat_model, est_file, all_gff_file, logger):
+        input_fasta, output_dir, log_dir, protein_db_fastas, num_cores, repeat_model, est_file, all_gff_file, logger):
     '''Run Maker batch'''
     # Get binary
     maker_bin = D_CONF['MAKER_PATH']
@@ -369,12 +300,9 @@ def run_maker_batch(
     os.system('{} -CTL'.format(maker_bin))
 
     # Editting maker_opts.ctl - general
-    replace('maker_opts.ctl', 'genome= ', 'genome={} '.format(input_fasta))
-    replace(
-        'maker_opts.ctl', 'protein=  ',
-        'protein={} '.format(','.join(protein_db_fastas))
-    )
-    replace('maker_opts.ctl', 'cpus=1', 'cpus={}'.format(num_cores))
+    replace('maker_opts.ctl', 'genome= ', f'genome={input_fasta} ')
+    replace('maker_opts.ctl', 'protein=  ', f'protein={','.join(protein_db_fastas)} ')
+    replace('maker_opts.ctl', 'cpus=1', f'cpus={num_cores}')
     replace('maker_opts.ctl', 'clean_up=0', 'clean_up=1')
 
     # For fungal genome
@@ -385,7 +313,7 @@ def run_maker_batch(
 
     # If EST is provided
     if est_file != '':
-        replace('maker_opts.ctl', 'est= ', 'est={} '.format(est_file))
+        replace('maker_opts.ctl', 'est= ', f'est={est_file} ')
         replace('maker_opts.ctl', 'est2genome=0 ', 'est2genome=1 ')
 
     # Set repeat model
@@ -393,41 +321,30 @@ def run_maker_batch(
 
     # Run faster feed aligned transcripts, proteins, repeat masking
     if all_gff_file:
-        replace(
-            'maker_opts.ctl', 'maker_gff= ',
-            'maker_gff={} '.format(all_gff_file)
-        )
+        replace('maker_opts.ctl', 'maker_gff= ', f'maker_gff={all_gff_file} ')
         replace('maker_opts.ctl', 'protein_pass=0', 'protein_pass=1')
         replace('maker_opts.ctl', 'rm_pass=0', 'rm_pass=1')
-        replace(
-            'maker_opts.ctl', 'repeat_protein=', 'repeat_protein='
-        )
-
+        replace('maker_opts.ctl', 'repeat_protein=', 'repeat_protein=')
     else:
-        replace(
-            'maker_opts.ctl', 'rmlib= ', 'rmlib={}'.format(repeat_model)
-        )
+        replace('maker_opts.ctl', 'rmlib= ', f'rmlib={repeat_model}')
 
     # Run maker
     maker_log = os.path.join(log_dir, 'maker_{}_run1.log'.format(est_prefix))
-    command = '{} -fix_nucleotides > {} 2>&1'.format(maker_bin, maker_log)
+    command = f'{maker_bin} -fix_nucleotides > {maker_log} 2>&1'
     logger_txt = logger[1]
-    logger_txt.debug('[Run] %s', command)
+    logger_txt.debug(f'[Run] {command}')
     os.system(command)
 
 
 def run_maker_trained(
-        input_fasta, output_dir, log_dir, augustus_species, num_cores,
-        snap_hmm_file, all_gff_file, version, prefix, logger,
-        eukgmhmmfile=None):
+        input_fasta, output_dir, log_dir, augustus_species, num_cores, snap_hmm_file, all_gff_file, version, prefix,
+        logger, eukgmhmmfile=None):
     '''Run maker'''
     # Get binary
     maker_bin = D_CONF['MAKER_PATH']
 
     # Create directory
-    maker_run_dir = os.path.join(
-        output_dir, prefix, 'maker_run{}'.format(version)
-    )
+    maker_run_dir = os.path.join(output_dir, prefix, 'maker_run{}'.format(version))
 
     if not glob(maker_run_dir):
         os.mkdir(maker_run_dir)
@@ -436,11 +353,11 @@ def run_maker_trained(
     os.chdir(maker_run_dir)
 
     # Make CTL files
-    os.system('{} -CTL'.format(maker_bin))
+    os.system(f'{maker_bin} -CTL')
 
     # Editting maker_opts.ctl - general
-    replace('maker_opts.ctl', 'genome= ', 'genome={} '.format(input_fasta))
-    replace('maker_opts.ctl', 'cpus=1', 'cpus={}'.format(num_cores))
+    replace('maker_opts.ctl', 'genome= ', f'genome={input_fasta} ')
+    replace('maker_opts.ctl', 'cpus=1', f'cpus={num_cores}')
 
     # For fungal genome
     replace('maker_opts.ctl', 'split_hit=', 'split_hit=5000')
@@ -453,106 +370,86 @@ def run_maker_trained(
     replace('maker_opts.ctl', 'repeat_protein=', 'repeat_protein=')
 
     # Supply SNAP HMM v1
-    replace('maker_opts.ctl', 'snaphmm= ', 'snaphmm={} '.format(snap_hmm_file))
+    replace('maker_opts.ctl', 'snaphmm= ', f'snaphmm={snap_hmm_file} ')
 
     # Run faster feed aligned transcripts, proteins, repeat masking
-    replace(
-        'maker_opts.ctl', 'maker_gff= ', 'maker_gff={} '.format(all_gff_file)
-    )
+    replace('maker_opts.ctl', 'maker_gff= ', f'maker_gff={all_gff_file} ')
     replace('maker_opts.ctl', 'est_pass=0', 'est_pass=1')
     replace('maker_opts.ctl', 'protein_pass=0', 'protein_pass=1')
     replace('maker_opts.ctl', 'rm_pass=0', 'rm_pass=1')
 
     # Program paths
-    for program in [
-            'makeblastdb', 'blastn', 'blastx', 'tblastx', 'RepeatMasker',
-            'exonerate', 'snap', 'augustus', 'tRNAscan-SE', 'snoscan']:
-        replace('maker_exe.ctl', '{}='.format(program), '{}={}'.format(
-            program, os.path.join(os.path.dirname(maker_bin), program)
-        ))
+    programs = ['makeblastdb', 'blastn', 'blastx', 'tblastx', 'RepeatMasker', 'exonerate', 'snap', 'augustus']
+    for program in programs:
+        maker_bin_path = get_maker_bin_path()
+        program_path = os.path.join(maker_bin_path, program)
+        replace('maker_exe.ctl', f'{program}=', f'{program}={program_path} ')
 
     # Last run, keep_preds=1
     if version == '4':
         replace('maker_opts.ctl', 'keep_preds=0', 'keep_preds=1')
-
         # Set AUGUSTUS species
-        replace(
-            'maker_opts.ctl', 'augustus_species= ',
-            'augustus_species={} '.format(augustus_species)
-        )
-
+        replace('maker_opts.ctl', 'augustus_species= ', f'augustus_species={augustus_species} ')
         # Set gmhmm
-        replace('maker_opts.ctl', 'gmhmm= ', 'gmhmm={} '.format(eukgmhmmfile))
-        replace(
-            'maker_exe.ctl', 'gmhmme3= ',
-            'gmhmme3={} '.format(D_CONF['GMHMME3_PATH'])
-        )
-        replace(
-            'maker_exe.ctl', 'probuild= ',
-            'probuild={} '.format(D_CONF['PROBUILD_PATH'])
-        )
+        replace('maker_opts.ctl', 'gmhmm= ', f'gmhmm={eukgmhmmfile} ')
+        replace('maker_exe.ctl', 'gmhmme3= ', f'gmhmme3={D_CONF['GMHMME3_PATH'].split()[-1]} ')
+        replace('maker_exe.ctl', 'probuild= ', f'probuild={D_CONF['PROBUILD_PATH'].split()[-1]} ')
 
     # Run maker
-    maker_log = os.path.join(
-        log_dir, 'maker_{}_run{}.log'.format(prefix, version)
-    )
-    command = '{} -fix_nucleotides > {} 2>&1'.format(maker_bin, maker_log)
+    maker_log = os.path.join(log_dir, 'maker_{}_run{}.log'.format(prefix, version))
+    command = f'{maker_bin} -fix_nucleotides > {maker_log} 2>&1'
     logger_txt = logger[1]
-    logger_txt.debug('[Run] %s', command)
+    logger_txt.debug(f'[Run] {command}')
     os.system(command)
+
+
+def get_maker_bin_path():
+    '''Get program path from D_CONF'''
+    command = '${MAMBA_EXE} run --name maker which maker'
+    command_out = subprocess.run(command, shell=True, capture_output=True, text=True)
+    maker_bin_path = os.path.dirname(command_out.stdout.strip())
+    return maker_bin_path
 
 
 def collect_result(input_fasta, output_dir, version, prefix, logger):
     '''Collect results'''
-    maker_run_dir = os.path.join(
-        output_dir, prefix, 'maker_run{}'.format(version)
-    )
+    maker_run_dir = os.path.join(output_dir, prefix, f'maker_run{version}')
     input_prefix = (os.path.splitext(os.path.basename(input_fasta))[0])
-    index_file = os.path.join(
-        maker_run_dir,
-        '{0}.maker.output/{0}_master_datastore_index.log'.format(input_prefix)
-    )
+    index_file = os.path.join(maker_run_dir, f'{input_prefix}.maker.output/{input_prefix}_master_datastore_index.log')
 
     # Change directory to maker_run_dir
     gff3_merge_bin = D_CONF['GFF3_MERGE_PATH']
     os.chdir(maker_run_dir)
-    command = '{} -d {}'.format(gff3_merge_bin, index_file)
+    command = f'{gff3_merge_bin} -d {index_file}'
     logger_txt = logger[1]
-    logger_txt.debug('[Run] %s', command)
+    logger_txt.debug(f'[Run] {command}')
     os.system(command)
 
-    all_gff_file = '{}.all.gff'.format(input_prefix)
+    all_gff_file = f'{input_prefix}.all.gff'
     all_gff_file_abs = os.path.abspath(all_gff_file)
 
     os.chdir(output_dir)
-
     return all_gff_file_abs
 
 
-def collect_result_final(
-        input_fasta, output_dir, prefix, translation_table, logger):
+def collect_result_final(input_fasta, output_dir, prefix, translation_table, logger):
     '''Collect results'''
     maker_run_dir = os.path.join(output_dir, prefix, 'maker_run4')
-    input_prefix = (os.path.splitext(os.path.basename(input_fasta))[0])
-    index_file = os.path.join(
-        maker_run_dir,
-        '{0}.maker.output/{0}_master_datastore_index.log'.format(input_prefix)
-    )
+    input_prefix = os.path.splitext(os.path.basename(input_fasta))[0]
+    index_file = os.path.join(maker_run_dir, f'{input_prefix}.maker.output/{input_prefix}_master_datastore_index.log')
 
     # Change directory to maker_run_dir
     os.chdir(maker_run_dir)
     gff3_merge_bin = D_CONF['GFF3_MERGE_PATH']
-    command1 = '{} -g -n -d {}'.format(gff3_merge_bin, index_file)
+    command1 = f'{gff3_merge_bin} -g -n -d {index_file}'
     logger_txt = logger[1]
-    logger_txt.debug('[Run] %s', command1)
+    logger_txt.debug(f'[Run] {command1}')
     os.system(command1)
 
     # Copy to maker root directory
     maker_root = os.path.join(output_dir, prefix)
-    merged_gff3 = os.path.join(
-        maker_root, 'maker_run4', '{}.all.gff'.format(input_prefix)
-    )
-    output_gff3 = os.path.join(maker_root, 'maker_{}.gff3'.format(prefix))
+    merged_gff3 = os.path.join(maker_root, 'maker_run4', f'{input_prefix}.all.gff')
+    output_gff3 = os.path.join(maker_root, f'maker_{prefix}.gff3'.format(prefix))
     copyfile(merged_gff3, output_gff3)
 
     output_faa = os.path.join(maker_root, 'maker_{}.faa'.format(prefix))
@@ -562,30 +459,24 @@ def collect_result_final(
         command2 = '{} -d {}'.format(fasta_merge_bin, index_file)
         logger_txt.debug('[Run] %s', command2)
         os.system(command2)
-        merged_faa = os.path.join(
-            maker_root, 'maker_run4',
-            '{}.all.maker.proteins.fasta'.format(input_prefix)
-        )
+        merged_faa = os.path.join(maker_root, 'maker_run4', f'{input_prefix}.all.maker.proteins.fasta')
         copyfile(merged_faa, output_faa)
     else:
         # Translate with the given translation table
         this_path = os.path.realpath(__file__)
         this_dir = os.path.dirname(this_path)
         gff3_translation_path = os.path.join(this_dir, GFF3_TRANSLATION_SCRIPT)
-        command3 = 'python {} -a {} -g {} -t {} -o {}'.format(
-            gff3_translation_path, input_fasta, output_gff3, translation_table,
-            output_faa
-        )
-        logger_txt.debug('[Run] %s', command3)
+        command3 = (
+            f'python {gff3_translation_path} -a {input_fasta} -g {output_gff3} -t {translation_table} '
+            f'-o {output_faa}')
+        logger_txt.debug(f'[Run] {command3}')
         os.system(command3)
     os.chdir(output_dir)
 
 
 def train_snap(output_dir, all_gff_file, version, prefix, logger):
     '''Train SNAP'''
-    maker_run_dir = os.path.join(
-        output_dir, prefix, 'maker_run{}'.format(version)
-    )
+    maker_run_dir = os.path.join(output_dir, prefix, f'maker_run{version}')
 
     maker2zff_bin = D_CONF['MAKER2ZFF_PATH']
     fathom_bin = D_CONF['FATHOM_PATH']
@@ -598,26 +489,24 @@ def train_snap(output_dir, all_gff_file, version, prefix, logger):
         os.makedirs('snp_training')
     os.chdir('snp_training')
 
-    snap_hmm_file = os.path.abspath('snap_hmm_v{}.hmm'.format(version))
+    snap_hmm_file = os.path.abspath(f'snap_hmm_v{version}.hmm')
     logger_txt = logger[1]
     if not os.path.exists(snap_hmm_file):
         # Run maker2zff to select a subset of gene models for training
-        command1 = '{} -n {}'.format(maker2zff_bin, all_gff_file)
-        logger_txt.debug('[Run] %s', command1)
+        command1 = f'{maker2zff_bin} -n {all_gff_file}'
+        logger_txt.debug(f'[Run] {command1}', command1)
         os.system(command1)
 
         # It generates genome.dna and genome.ann
         # split the annotations into four categories: unique genes, warnings,
         # alternative spliced genes, overlapping genes, and errors
-        command2 = '{} -categorize 1000 genome.ann genome.dna'.format(
-            fathom_bin
-        )
+        command2 = f'{fathom_bin} -categorize 1000 genome.ann genome.dna'
         logger_txt.debug('[Run] %s', command2)
         os.system(command2)
 
         # Export the genes
-        command3 = '{} -export 1000 -plus uni.ann uni.dna'.format(fathom_bin)
-        logger_txt.debug('[Run] %s', command3)
+        command3 = f'{fathom_bin} -export 1000 -plus uni.ann uni.dna'
+        logger_txt.debug(f'[Run] {command3}')
         os.system(command3)
 
         # Create directory
@@ -628,47 +517,30 @@ def train_snap(output_dir, all_gff_file, version, prefix, logger):
         os.chdir('parameters')
 
         # Generate the new parameters with forge
-        command4 = '{} ../export.ann ../export.dna'.format(forge_bin)
-        logger_txt.debug('[Run] %s', command4)
+        command4 = f'{forge_bin} ../export.ann ../export.dna'
+        logger_txt.debug(f'[Run] {command4}')
         os.system(command4)
 
         # Generate the new HMM
         os.chdir('..')
-        command5 = '{0} snap_hmm_v{1} parameters > snap_hmm_v{1}.hmm'.format(
-            hmm_assembler_bin, version
-        )
-        logger_txt.debug('[Run] %s', command5)
+        command5 = f'{hmm_assembler_bin} snap_hmm_v{version} parameters > snap_hmm_v{version}.hmm'
+        logger_txt.debug(f'[Run] {command5}')
         os.system(command5)
     else:
-        logger_txt.debug(
-            '[Note] SNAP training has been alread finished for %s',
-            os.path.basename(snap_hmm_file)
-        )
-
+        logger_txt.debug(f'[Note] SNAP training has been already finished for {os.path.basename(snap_hmm_file)}')
     os.chdir(output_dir)
-
     return snap_hmm_file
 
 
 def get_masked_asm(output_dir, est_files, logger):
     '''Get masked assembly'''
-    est_prefix_first = (
-        os.path.basename(os.path.splitext(est_files[0])[0])
-        .replace('Trinity_', '')
-    )
-
-    maker_run_dir = os.path.join(
-        output_dir, est_prefix_first, 'maker_run3'
-    )
-    # masked_asm_files = glob(masked_asm_path)
+    est_prefix_first = (os.path.basename(os.path.splitext(est_files[0])[0]).replace('Trinity_', ''))
+    maker_run_dir = os.path.join(output_dir, est_prefix_first, 'maker_run3')
     masked_asm = os.path.join(output_dir, 'masked_assembly.fasta')
-    command = 'find {} -name "query.masked.fasta" | xargs cat > {}'.format(
-        maker_run_dir, masked_asm
-    )
+    command = f'find {maker_run_dir} -name "query.masked.fasta" | xargs cat > {masked_asm}'
     logger_txt = logger[1]
-    logger_txt.debug('[Run] %s', command)
+    logger_txt.debug(f'[Run] {command}')
     os.system(command)
-
     return masked_asm
 
 

@@ -38,7 +38,7 @@ Last updated: May 18, 2021
 '''
 
 # Version
-__version__ = '1.1.1'
+__version__ = '1.1.2'
 
 # Import modules
 import os

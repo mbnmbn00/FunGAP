@@ -1,6 +1,6 @@
 # Installation of FunGAP v1.1.2
 
-** Last updated: May 26, 2025*
+** Last updated: Jul 4, 2025*
 
 **FunGAP is freely available for academic use. For the commerical use or license of FunGAP, please contact In-Geol Choi (email: igchoi (at) korea.ac.kr). Please, cite the following reference**
 
@@ -29,7 +29,7 @@ Although we recommend using Docker, some workspaces are not available for Docker
 
 1. [Hisat2](https://ccb.jhu.edu/software/hisat2/index.shtml) v2.2.1
 1. [Trinity](https://github.com/trinityrnaseq/trinityrnaseq) v2.15.2
-1. [RepeatModeler](http://www.repeatmasker.org/RepeatModeler/) v2.0.6
+1. [RepeatModeler](http://www.repeatmasker.org/RepeatModeler/) v2.0.7
 1. [Maker](http://www.yandell-lab.org/software/maker.html) v3.01.03
 1. [GeneMark-ES/ET](http://topaz.gatech.edu/GeneMark/license_download.cgi) v4.72_lic
 1. [Augustus](https://github.com/Gaius-Augustus/Augustus) v3.5.0
@@ -48,13 +48,15 @@ Although we recommend using Docker, some workspaces are not available for Docker
 
 ## 1. Setup Micromamba environment
 
-### 1.1. Install Micromamba (v2.1.0 tested)
+### 1.1. Install Micromamba (v2.3.0 tested)
 
 ```bash
 # Download and install Micromamba
 cd ${HOME}
 "${SHELL}" <(curl -L micro.mamba.pm/install.sh)
 source ~/.bashrc
+micromamba --version
+# 2.3.0
 ```
 
 ### 1.2. Install dependencies
@@ -63,11 +65,11 @@ Install dependencies using Micromamba
 ```bash
 micromamba create -y --name braker3 bioconda::braker3  # v3.0.8 tested
 micromamba create -y --name trinity bioconda::trinity  # v2.15.2 tested
-micromamba create -y --name repeatmodeler bioconda::repeatmodeler  # v2.0.6 tested
+micromamba create -y --name repeatmodeler bioconda::repeatmodeler  # v2.0.7 tested
 micromamba create -y --name hisat2 bioconda::hisat2  # v2.2.1 tested
 micromamba create -y --name pfam_scan bioconda::pfam_scan  # v1.6 tested
-micromamba create -y --name busco bioconda::busco  # v5.8.3 tested
 micromamba create -y --name maker bioconda::maker  # v3.01.03 tested
+micromamba create -y --name busco bioconda::busco  # v5.8.3 tested
 micromamba create -y \
   --name fungap \
   --channel conda-forge --channel bioconda \
@@ -78,27 +80,27 @@ micromamba create -y \
 
 Check installations
 ```bash
-micromamba run --name repeatmodeler BuildDatabase --help
-micromamba run --name repeatmodeler RepeatModeler --help
-micromamba run --name hisat2 hisat2 --help
-micromamba run --name trinity Trinity --help
-micromamba run --name maker maker --help
-micromamba run --name maker gff3_merge --help
-micromamba run --name maker fasta_merge --help
-micromamba run --name maker maker2zff --help
-micromamba run --name maker fathom -help
-micromamba run --name maker forge
-micromamba run --name maker hmm-assembler.pl --help
-micromamba run --name braker3 braker.pl --help
-micromamba run --name busco busco --help
-micromamba run --name pfam_scan pfam_scan.pl -h
-micromamba run --name maker blastp -help
-micromamba run --name maker blastn -help
-micromamba run --name maker blastx -help
-micromamba run --name maker makeblastdb -help
-micromamba run --name maker samtools --help
-micromamba run --name maker bamtools --help
-micromamba run --name maker augustus --help
+${MAMBA_EXE} run --name braker3 braker.pl --version
+${MAMBA_EXE} run --name trinity Trinity --version
+${MAMBA_EXE} run --name repeatmodeler BuildDatabase --help
+${MAMBA_EXE} run --name repeatmodeler RepeatModeler --help
+${MAMBA_EXE} run --name hisat2 hisat2 --version
+${MAMBA_EXE} run --name pfam_scan pfam_scan.pl -h
+${MAMBA_EXE} run --name maker maker --version
+${MAMBA_EXE} run --name maker gff3_merge --help
+${MAMBA_EXE} run --name maker fasta_merge --help
+${MAMBA_EXE} run --name maker maker2zff --help
+${MAMBA_EXE} run --name maker fathom -help
+${MAMBA_EXE} run --name maker forge
+${MAMBA_EXE} run --name maker hmm-assembler.pl --help
+${MAMBA_EXE} run --name maker blastp -version
+${MAMBA_EXE} run --name maker blastn -version
+${MAMBA_EXE} run --name maker blastx -version
+${MAMBA_EXE} run --name maker makeblastdb -version
+${MAMBA_EXE} run --name maker samtools --version
+${MAMBA_EXE} run --name maker bamtools --version
+${MAMBA_EXE} run --name maker augustus --version
+${MAMBA_EXE} run --name busco busco --version
 ```
 
 <br />
@@ -110,7 +112,7 @@ micromamba run --name maker augustus --help
 Download FunGAP using GitHub clone. Suppose we are installing FunGAP in your `$HOME` directory, but you are free to change the location. `${FUNGAP_DIR}` is going to be your FunGAP installation directory.
 
 ```bash
-cd $HOME  # or wherever you want
+cd ${HOME}  # or wherever you want
 git clone https://github.com/CompSynBioLab-KoreaUniv/FunGAP.git
 export FUNGAP_DIR=$(realpath FunGAP/)
 # You can put this export command in the your .bashrc file
@@ -183,9 +185,15 @@ echo -e "\n\n2\n\n5\n" > tmp && ./configure < tmp
 
 # It should look like this
 ls $(dirname $(which RepeatMasker))/../share/RepeatMasker/Libraries
-# Artefacts.embl  Dfam.hmm       RepeatAnnotationData.pm  RepeatMasker.lib.nin  RepeatPeps.lib      RepeatPeps.lib.psq
-# CONS-Dfam_3.0   README.meta    RepeatMasker.lib         RepeatMasker.lib.nsq  RepeatPeps.lib.phr  RepeatPeps.readme
-# Dfam.embl       RMRBMeta.embl  RepeatMasker.lib.nhr     RepeatMaskerLib.embl  RepeatPeps.lib.pin  taxonomy.dat
+# Artefacts.embl           RepeatMasker.lib      RepeatMasker.lib.nsq  RepeatPeps.lib.pin  RepeatPeps.readme
+# Dfam.h5                  RepeatMasker.lib.ndb  RepeatMasker.lib.ntf  RepeatPeps.lib.pjs  famdb
+# README.meta              RepeatMasker.lib.nhr  RepeatMasker.lib.nto  RepeatPeps.lib.pot  taxonomy.dat
+# RMRBMeta.embl            RepeatMasker.lib.nin  RepeatPeps.lib        RepeatPeps.lib.psq
+# RMRB_spec_to_tax.json    RepeatMasker.lib.njs  RepeatPeps.lib.pdb    RepeatPeps.lib.ptf
+# RepeatAnnotationData.pm  RepeatMasker.lib.not  RepeatPeps.lib.phr    RepeatPeps.lib.pto
+
+# Deactivate the environment
+micromamba deactivate
 ```
 
 <br />
@@ -204,6 +212,12 @@ You can download yeast (*Saccharomyces cerevisiae*) genome assembly (FASTA) and 
 
 ```bash
 # Download RNA-seq reads using SRA toolkit (https://github.com/ncbi/sra-tools/wiki/01.-Downloading-SRA-Toolkit)
+# For Ubuntu,
+cd ${HOME}
+wget https://ftp-trace.ncbi.nlm.nih.gov/sra/sdk/3.2.1/sratoolkit.3.2.1-ubuntu64.tar.gz
+tar -zxvf sratoolkit.3.2.1-ubuntu64.tar.gz
+export PATH=${PATH}:${HOME}/sratoolkit.3.2.1-ubuntu64/bin
+
 # Parameter -X indicates the number of read pairs you want to download
 fastq-dump -X 1000000 -I --split-files SRR1198667
 
@@ -213,6 +227,8 @@ gunzip GCF_000146045.2_R64_genomic.fna.gz
 ```
 
 ### 2. Download protein sequences of related species
+
+Note: if you get the `HTTP Error 429: Too Many Requests` error, you may need to try one more time.
 
 ```bash
 micromamba run --name fungap ${FUNGAP_DIR}/download_sister_orgs.py \
@@ -245,4 +261,4 @@ micromamba run --name fungap ${FUNGAP_DIR}/fungap.py \
   --num_cores 8
   ```
   
-The FunGAP predicted ~5500 genes in my test run (`fungap_out/fungap_out` output directory). It took about 8 hours by Intel(R) Xeon(R) CPU E5-2676 v3 @ 2.40GHz with 8 CPU cores.
+The FunGAP predicted ~5500 genes in my test run (`fungap_out/fungap_out` output directory). It took about 8 hours by Intel(R) Xeon(R) CPU E5-2686 v3 @ 2.30GHz with 8 CPU cores.
