@@ -2,7 +2,7 @@
 
 '''
 Check if inputs are proper to run FunGAP
-Last updated: Jul 13, 2020
+Last updated: Jun 9, 2025
 '''
 
 import re
@@ -124,19 +124,17 @@ def check_trans(trans_read_1, trans_read_2, trans_read_single, trans_bam):
 def check_assmebly(genome_assembly):
     '''Check geonme assembly in FASTA'''
     with open(genome_assembly, 'r') as handle:
-        fasta = SeqIO.parse(handle, 'fasta')
-        if not any(fasta):
-            sys.exit('[ERROR] FASTA file is invalid: {}'.format(
-                genome_assembly
-            ))
+        fasta_records = list(SeqIO.parse(handle, 'fasta'))
 
-        error_message6 = (
-            '[ERROR] FASTA defline contains "|" character, please remove and '
-            're-run'
+        if not fasta_records:
+            sys.exit(f'[ERROR] FASTA file is invalid: {genome_assembly}')
+
+        error_message = (
+            '[ERROR] FASTA defline contains "|" character, please remove and re-run'
         )
-        for record in SeqIO.parse(handle, 'fasta'):
+        for record in fasta_records:
             if '|' in record.id:
-                sys.exit(error_message6)
+                sys.exit(error_message)
 
     print('GENOME_ASSEMBLY is ok...')
 
@@ -160,7 +158,7 @@ def check_busco_dataset(busco_dataset):
         [busco_bin, '--list-datasets'], stdout=subprocess.PIPE
     )
     output = str(proc.stdout.read().decode('utf-8'))
-    busco_dbs = re.findall(r'\S+_odb10', output)
+    busco_dbs = re.findall(r'\S+_odb\d+', output)
     if busco_dataset not in set(busco_dbs):
         sys.exit(
             '[ERROR] Invalid BUSCO DATASET: {}. Run busco --list-datasets to '
