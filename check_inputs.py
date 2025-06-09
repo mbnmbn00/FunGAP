@@ -154,14 +154,13 @@ def check_busco_dataset(busco_dataset):
     '''Check BUSCO dataset'''
     d_conf = import_config()
     busco_bin = d_conf['BUSCO_PATH']
-    proc = subprocess.Popen(
-        [busco_bin, '--list-datasets'], stdout=subprocess.PIPE
-    )
-    output = str(proc.stdout.read().decode('utf-8'))
+    busco_command = shlex.split(busco_bin)
+    busco_command.append('--list-datasets')
+    result = subprocess.run(busco_command, capture_output=True, text=True)
+    output = result.stdout
     busco_dbs = re.findall(r'\S+_odb\d+', output)
     if busco_dataset not in set(busco_dbs):
         sys.exit(
             '[ERROR] Invalid BUSCO DATASET: {}. Run busco --list-datasets to '
-            'get a full list available datasets'.format(busco_dataset)
-        )
+            'get a full list available datasets'.format(busco_dataset))
     print('BUSCO_DATASET is ok...')

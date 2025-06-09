@@ -240,7 +240,7 @@ micromamba run --name fungap ${FUNGAP_DIR}/fungap.py \
   --trans_read_1 SRR1198667_1.fastq \
   --trans_read_2 SRR1198667_2.fastq \
   --augustus_species saccharomyces_cerevisiae_S288C \
-  --busco_dataset ascomycota_odb10 \
+  --busco_dataset ascomycota_odb12 \
   --sister_proteome prot_db.faa \
   --num_cores 8
   ```

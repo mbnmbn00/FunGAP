@@ -17,12 +17,14 @@ hisat2 \
 
 Input: FASTQ files and genome assembly
 Output: SAM and converted BAM file using SAMtools.
-Last updated: Jul 13, 2020
+Last updated: Jun 9, 2025
 '''
 
 import os
 import re
 import sys
+import shlex
+import subprocess
 from argparse import ArgumentParser
 
 from import_config import import_config
@@ -38,33 +40,26 @@ def main():
     argparser_usage = (
         'run_hisat2.py -r <fastq1> <fastq2> <fastq3> ...'
         ' -o <output_dir> -l <log_dir> -f <ref_fasta> -c <num_cores>'
-        ' -m <max_intron>'
-    )
+        ' -m <max_intron>')
     parser = ArgumentParser(usage=argparser_usage)
     parser.add_argument(
         '-r', '--read_files', nargs='+', required=True,
-        help='Multiople read files in fastq format'
-    )
+        help='Multiople read files in fastq format')
     parser.add_argument(
         '-o', '--output_dir', nargs='?', default='hisat2_out',
-        help='Output directory'
-    )
+        help='Output directory')
     parser.add_argument(
         '-l', '--log_dir', nargs='?', default='logs',
-        help='Log directory'
-    )
+        help='Log directory')
     parser.add_argument(
         '-f', '--ref_fasta', nargs=1, required=True,
-        help='Reference fasta'
-    )
+        help='Reference fasta')
     parser.add_argument(
         '-c', '--num_cores', nargs='?', default=1, type=int,
-        help='Number of cores'
-    )
+        help='Number of cores')
     parser.add_argument(
         '-m', '--max_intron', nargs='?', default=2000, type=int,
-        help='Max intron length (Default: 2000 bp)'
-    )
+        help='Max intron length (Default: 2000 bp)')
 
     args = parser.parse_args()
 
@@ -87,8 +82,7 @@ def main():
     logger_time.debug('START: Hisat2')
     run_hisat2(
         read_files, output_dir, log_dir, ref_fasta, num_cores,
-        max_intron, logger
-    )
+        max_intron, logger)
     logger_time.debug('DONE : Hisat2')
 
 
@@ -141,8 +135,7 @@ def run_hisat2(
             read_pair = (
                 read_file
                 .replace('_1.fastq', '_2.fastq')
-                .replace('_1.fq', '_2.fq')
-            )
+                .replace('_1.fq', '_2.fq'))
             if not os.path.exists(read_pair):
                 logger_txt.debug(
                     '[ERROR] No read file pair for %s found. We expect %s',
@@ -158,27 +151,38 @@ def run_hisat2(
         else:
             logger_txt.debug(
                 '[ERROR] Please check trans_read files:\n--> %s',
-                os.path.basename(read_file)
-            )
+                os.path.basename(read_file))
             sys.exit(2)
 
         prefix = os.path.basename(os.path.splitext(read_file)[0])
         prefix = re.sub('_[1s]$', '', prefix)
-        hisat2_output = os.path.join(
-            output_dir, '{}.bam'.format(prefix)
-        )
+        hisat2_output = os.path.join(output_dir, '{}.bam'.format(prefix))
         hisat2_outputs.append(hisat2_output)
         if not os.path.exists(hisat2_output):
-            log_file = os.path.join(log_dir, 'hisat2_{}.log'.format(prefix))
-            command2 = (
-                '{0} --max-intronlen {1} -p {2} -x {3} {4} 2> {5} | '
-                '{6} view -bSF4 - | {6} sort - -o {7}'.format(
-                    hisat2_bin, max_intron, num_cores, ref_fasta, read_arg,
-                    log_file, samtools_bin, hisat2_output
-                )
-            )
-            logger_txt.debug('[Run] %s', command2)
-            os.system(command2)
+            # Prepare paths
+            log_file = os.path.join(log_dir, f'hisat2_{prefix}.log')
+            sam_path = os.path.splitext(hisat2_output)[0] + '.sam'
+            unsorted_bam_path = os.path.splitext(hisat2_output)[0] + '.unsorted.bam'
+
+            # Step 1: Run HISAT2 and write SAM file
+            command1 = shlex.split(hisat2_bin)
+            command1.extend(['--max-intronlen', str(max_intron), '-p', str(num_cores), '-x', ref_fasta, '-S', sam_path])
+            command1.extend(read_arg.split())
+            with open(log_file, 'w') as logf:
+                logger_txt.debug('[Run] %s', ' '.join(command1))
+                subprocess.run(command1, stderr=logf, check=True)
+
+            # Step 2: Convert SAM to BAM
+            command2 = shlex.split(samtools_bin)
+            command2.extend(['view', '-bSF4', sam_path, '-o', unsorted_bam_path])
+            logger_txt.debug('[Run] %s', ' '.join(command2))
+            subprocess.run(command2, check=True)
+
+            # Step 3: Sort BAM
+            command3 = shlex.split(samtools_bin)
+            command3.extend(['sort', unsorted_bam_path, '-o', hisat2_output])
+            logger_txt.debug('[Run] %s', ' '.join(command3))
+            subprocess.run(command3, check=True)
         else:
             logger_txt.debug(
                 '[Note] Running Hisat2 has already been finished for %s', prefix
